@@ -62,3 +62,15 @@ export function bujoJson(home, ...args) {
   if (r.status !== 0) throw new Error(`bujo ${args.join(' ')} failed (${r.status}): ${r.stderr}`);
   return JSON.parse(r.stdout).data;
 }
+
+export const HOOK = join(ROOT, 'hooks/slice-inbox.sh');
+
+// Run an executable directly (no shell wrapper) with a controlled environment.
+export function runExecutable(file, { env = {}, home, path = PATH_WITH_BUJO } = {}) {
+  const r = spawnSync(file, [], {
+    encoding: 'utf8',
+    env: { PATH: path, BUJO_HOME: home ?? freshJournal(), BUJO_TZ: 'UTC', HOME: tmpdir(), ...env },
+  });
+  if (r.error) throw r.error;
+  return { code: r.status, stdout: r.stdout, stderr: r.stderr };
+}
