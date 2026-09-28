@@ -72,6 +72,35 @@ Record what was observed, then open a Decide task. `<id>` is the entry ID
 6. Report the `signal=` and `decide=` IDs, and that the Decide task is due
    today (it shows as overdue in the digest until `/slice decide`).
 
+## /slice decide <id>
+
+Log the decision and draft the pattern. `<id>` is the entry ID (the Question
+bullet's ID).
+
+1. Run the `First-run check`.
+2. Read the entry (`bujo read <id> --bullet-only`, and its `bujo refs <id>`)
+   so you know the question, its context tag, and the open `Decide:` task.
+   Show the user the entry's `Signal:` note before asking for a decision.
+3. **Force the decision**: the user must pick exactly one label:
+   `KILL`, `PIVOT`, `DOUBLE DOWN`, `CONTINUE`, or `NO DECISION`, plus a
+   one-line **why**. Do not accept anything vaguer ("let's see", "maybe")
+   and never default to a label. `NO DECISION` is allowed only when the user
+   explicitly chooses it; never pick it for them because they hesitated.
+4. **Extract the pattern** (advisory; the user accepts, edits, or dismisses):
+   draft ONE portable lesson line learned from this slice. It must generalize
+   beyond this entry: no company or customer names, no internal metrics. If
+   the user dismisses it, leave `PATTERN` empty and no pattern is written.
+5. **Portability check** (only when the entry is tagged `#work`): strip
+   customer names, exact internal metrics, and confidential terms from the
+   why (and the pattern), and propose safe rewrites. Nothing is written until
+   the user accepts the portable wording.
+6. Run the `Log decision` recipe with the final values. It refuses (non-zero,
+   writes nothing) if the label is not one of the five, the why is empty, the
+   ID is not a slice question, or there is no open `Decide:` task (no signal
+   recorded yet, or already decided).
+7. Report the `decision=` ID and, if written, the `pattern=` ID. The entry is
+   now closed.
+
 ## Recipes
 
 ### First-run check
@@ -163,4 +192,49 @@ DECIDE_ID=$(bujo add "Decide: $SHORT_Q" --tag slice --tag decide --tag "$CTX" --
 bujo thread "$ENTRY_ID" "$DECIDE_ID" >/dev/null
 echo "signal=$SIGNAL_ID"
 echo "decide=$DECIDE_ID"
+```
+
+### Log decision
+
+Inputs: `ENTRY_ID` (the Question ID), `LABEL` (one of `KILL`, `PIVOT`,
+`DOUBLE DOWN`, `CONTINUE`, `NO DECISION`), `WHY` (one line); optional
+`PATTERN` (one portable lesson; leave empty to skip). The context tag is
+copied from the Question bullet.
+Prints `decision=<id>` and, when a pattern is written, `pattern=<id>`.
+
+```bash
+read_id() { node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).data.id'; }
+for v in ENTRY_ID LABEL WHY; do
+  if [ -z "${!v:-}" ]; then echo "$v is required" >&2; exit 1; fi
+done
+case "$LABEL" in
+  KILL|PIVOT|"DOUBLE DOWN"|CONTINUE|"NO DECISION") ;;
+  *) echo "LABEL must be one of: KILL, PIVOT, DOUBLE DOWN, CONTINUE, NO DECISION (got: $LABEL)" >&2; exit 1 ;;
+esac
+Q_LINE=$(bujo read "$ENTRY_ID" --bullet-only 2>/dev/null || true)
+if [[ "$Q_LINE" != "- Q: "* || " $Q_LINE " != *" #slice "* || " $Q_LINE " != *" #question "* ]]; then
+  echo "No slice question with ID $ENTRY_ID" >&2; exit 1
+fi
+CTX=""
+for c in work personal; do
+  if [[ " $Q_LINE " == *" #$c "* ]]; then CTX=$c; break; fi
+done
+if [ -z "$CTX" ]; then echo "Entry $ENTRY_ID has no #work or #personal tag" >&2; exit 1; fi
+DECIDE_ID=""
+for ref in $(bujo refs "$ENTRY_ID" --json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).data.forwardRefs.map((r) => r.id).join(" ")'); do
+  line=$(bujo read "$ref" --bullet-only)
+  if [[ "$line" == "- [ ] "*"Decide:"* ]]; then DECIDE_ID=$ref; break; fi
+done
+if [ -z "$DECIDE_ID" ]; then
+  echo "No open Decide task for entry $ENTRY_ID (record the signal first, or already decided?)" >&2; exit 1
+fi
+bujo done "$DECIDE_ID" >/dev/null
+DECISION_ID=$(bujo note "Decision: $LABEL — $WHY" --tag slice --tag decision --tag "$CTX" --json | read_id)
+bujo thread "$ENTRY_ID" "$DECISION_ID" >/dev/null
+echo "decision=$DECISION_ID"
+if [ -n "${PATTERN:-}" ]; then
+  PATTERN_ID=$(bujo collection add patterns "$PATTERN" --tag pattern --json | read_id)
+  bujo thread "$ENTRY_ID" "$PATTERN_ID" >/dev/null
+  echo "pattern=$PATTERN_ID"
+fi
 ```
