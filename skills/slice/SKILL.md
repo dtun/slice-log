@@ -47,6 +47,31 @@ Start a new entry: **Question → Slice → Signal due**.
 3. Run the `First-run check`, then the `New entry` recipe with the final values.
 4. Report the entry ID (the `question=` ID) and the signal-due date.
 
+## /slice signal <id>
+
+Record what was observed, then open a Decide task. `<id>` is the entry ID
+(the Question bullet's ID).
+
+1. Run the `First-run check`.
+2. Read the entry (`bujo read <id> --bullet-only`, and its `bujo refs <id>`)
+   so you know the question, its context tag, and the open `Check signal:`
+   task. Take the **short Q** from that task's text.
+3. **Check in** (advisory; the user accepts, edits, or dismisses): ask what
+   was observed. Separate the observation (what literally happened: numbers,
+   quotes, events) from its interpretation (what they think it means). Only
+   the observation goes into `SIGNAL`; keep the signal line factual. Keep the
+   interpretation out of the Signal note, or, if the user insists, mark it
+   clearly (e.g. `… (interpretation: …)`).
+4. **Portability check** (only when the entry is tagged `#work`): strip
+   customer names, exact internal metrics, and confidential terms from the
+   signal, and propose safe rewrites. Nothing is written until the user
+   accepts the portable wording.
+5. Run the `Record signal` recipe with the final values. It refuses (non-zero,
+   writes nothing) if the ID is not a slice question or has no open
+   `Check signal:` task.
+6. Report the `signal=` and `decide=` IDs, and that the Decide task is due
+   today (it shows as overdue in the digest until `/slice decide`).
+
 ## Recipes
 
 ### First-run check
@@ -100,4 +125,42 @@ bujo thread "$Q_ID" "$CHECK_ID" >/dev/null
 echo "question=$Q_ID"
 echo "slice=$SLICE_ID"
 echo "check=$CHECK_ID"
+```
+
+### Record signal
+
+Inputs: `ENTRY_ID` (the Question ID), `SIGNAL` (what was observed, factual),
+`SHORT_Q` (take it from the entry's `Check signal:` task text). The context
+tag (`work`/`personal`) is copied from the Question bullet.
+Prints `signal=<id>` and `decide=<id>`.
+
+```bash
+read_id() { node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).data.id'; }
+for v in ENTRY_ID SIGNAL SHORT_Q; do
+  if [ -z "${!v:-}" ]; then echo "$v is required" >&2; exit 1; fi
+done
+Q_LINE=$(bujo read "$ENTRY_ID" --bullet-only 2>/dev/null || true)
+if [[ "$Q_LINE" != "- Q: "* || " $Q_LINE " != *" #slice "* || " $Q_LINE " != *" #question "* ]]; then
+  echo "No slice question with ID $ENTRY_ID" >&2; exit 1
+fi
+CTX=""
+for c in work personal; do
+  if [[ " $Q_LINE " == *" #$c "* ]]; then CTX=$c; break; fi
+done
+if [ -z "$CTX" ]; then echo "Entry $ENTRY_ID has no #work or #personal tag" >&2; exit 1; fi
+CHECK_ID=""
+for ref in $(bujo refs "$ENTRY_ID" --json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).data.forwardRefs.map((r) => r.id).join(" ")'); do
+  line=$(bujo read "$ref" --bullet-only)
+  if [[ "$line" == "- [ ] "*"Check signal:"* ]]; then CHECK_ID=$ref; break; fi
+done
+if [ -z "$CHECK_ID" ]; then
+  echo "No open Check signal task for entry $ENTRY_ID (signal already recorded?)" >&2; exit 1
+fi
+bujo done "$CHECK_ID" >/dev/null
+SIGNAL_ID=$(bujo note "Signal: $SIGNAL" --tag slice --tag signal --tag "$CTX" --json | read_id)
+bujo thread "$ENTRY_ID" "$SIGNAL_ID" >/dev/null
+DECIDE_ID=$(bujo add "Decide: $SHORT_Q" --tag slice --tag decide --tag "$CTX" --json | read_id)
+bujo thread "$ENTRY_ID" "$DECIDE_ID" >/dev/null
+echo "signal=$SIGNAL_ID"
+echo "decide=$DECIDE_ID"
 ```
