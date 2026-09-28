@@ -140,6 +140,21 @@ Question.
    - **Awaiting signal**: an open `Check signal:` task exists; suggest
      `/slice signal <entry-id>` once its due date arrives.
 
+## /slice patterns
+
+Export every pattern (the portable lessons drafted at `/slice decide`) as
+markdown the user can paste into a resume, interview prep, or an X post.
+
+1. Run the `First-run check`, then the `Export patterns` recipe. It is
+   read-only.
+2. Show its output as-is in a fenced `markdown` block so it is easy to copy.
+   If it prints `_No patterns yet._`, say that patterns are drafted when an
+   entry is decided with `/slice decide <id>`.
+3. **Tighten for a post** (advisory; the user accepts, edits, or dismisses):
+   offer to rewrite any pattern line as a post-sized version (one punchy
+   sentence that stands alone). Show the rewrite in the reply only; never
+   write it to the journal.
+
 ## Recipes
 
 ### First-run check
@@ -337,4 +352,35 @@ elif [[ "${SECTIONS[3]}" == *"- [ ] Decide: "* ]]; then STATUS="Needs decision"
 elif [[ "${SECTIONS[1]}" == *"- [ ] Check signal: "* ]]; then STATUS="Awaiting signal"
 fi
 echo "Status: $STATUS"
+```
+
+### Export patterns
+
+Inputs: none. Read-only. Prints markdown: a `# Patterns` heading, a blank
+line, then one `- <lesson>` bullet per `#pattern` bullet in the journal, with
+the bujo syntax stripped (checkbox, `#pattern` tag, `^id`, `← ^x` / `→ ^x`
+thread markers). `bujo search` is a substring match, so only bullets carrying
+the `#pattern` tag token count; slice bullets (`#slice`) whose text merely
+mentions it are skipped. With no patterns it prints `_No patterns yet._`
+under the heading.
+
+```bash
+bujo search "#pattern" --json | node -e '
+  const { data } = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  const tagged = (s, t) => new RegExp(`(^|\\s)#${t}(?=\\s|$)`).test(s);
+  const lessons = data
+    .map((m) => m.content)
+    .filter((c) => tagged(c, "pattern") && !tagged(c, "slice"))
+    .map((c) => c
+      .replace(/^\s*[-*]\s+(\[.\]\s+)?/, "")
+      .replace(/\s*[←→]\s*\^\S+/g, "")
+      .replace(/(^|\s)\^\S+/g, "")
+      .replace(/(^|\s)#pattern(?=\s|$)/g, "")
+      .replace(/\s+/g, " ")
+      .trim())
+    .filter(Boolean);
+  console.log("# Patterns\n");
+  if (lessons.length === 0) console.log("_No patterns yet._");
+  for (const l of lessons) console.log(`- ${l}`);
+'
 ```
