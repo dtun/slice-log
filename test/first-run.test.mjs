@@ -6,7 +6,7 @@ import { bujoJson, freshJournal, recipe, runScript, PATH_WITHOUT_BUJO } from './
 test('first-run check: bujo missing prints the install line and fails', () => {
   const r = runScript(recipe('First-run check'), { path: PATH_WITHOUT_BUJO });
   assert.notEqual(r.code, 0);
-  assert.match(r.stdout, /^npm install -g @paperstreetapp\/bujo-cli$/m);
+  assert.match(r.stdout, /^npm install -g github:paperstreetapp\/bujo-cli#v0\.2\.0$/m);
 });
 
 test('first-run check: missing journal is initialized with a patterns collection', () => {

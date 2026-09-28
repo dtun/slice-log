@@ -4,7 +4,9 @@
 
 if ! command -v bujo >/dev/null 2>&1; then
   echo "slice: bujo is not installed. Install it with:"
-  echo "npm install -g @paperstreetapp/bujo-cli"
+  # bujo isn't on the npm registry yet; switch back to
+  # `npm install -g @paperstreetapp/bujo-cli` once bujo is published to npm.
+  echo "npm install -g github:paperstreetapp/bujo-cli#v0.2.0"
   exit 0
 fi
 

@@ -161,9 +161,13 @@ markdown the user can paste into a resume, interview prep, or an X post.
 
 Inputs: none.
 
+The install line points at GitHub because bujo isn't on the npm registry yet;
+switch back to `npm install -g @paperstreetapp/bujo-cli` once bujo is
+published to npm.
+
 ```bash
 if ! command -v bujo >/dev/null 2>&1; then
-  echo "npm install -g @paperstreetapp/bujo-cli"
+  echo "npm install -g github:paperstreetapp/bujo-cli#v0.2.0"
   exit 1
 fi
 bujo init >/dev/null

@@ -18,6 +18,8 @@ mkdir -p ~/.claude/skills/slice && cp skills/slice/SKILL.md ~/.claude/skills/sli
 
 The spec's install line is `npm install -g @paperstreetapp/bujo-cli`, but that
 package isn't on the npm registry yet (404), so install from GitHub as shown.
+The skill's first-run check and the SessionStart hook print this GitHub command
+too; they'll switch to the registry name once bujo is published to npm.
 
 You don't need to run `bujo init` yourself. The skill's first-run check runs at
 the top of every `/slice` command: it prints the install line if `bujo` is

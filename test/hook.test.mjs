@@ -44,7 +44,7 @@ function section(stdout, name) {
 test('hook: without bujo on PATH prints the npm install line and exits 0', () => {
   const r = runExecutable(HOOK, { path: PATH_WITHOUT_BUJO });
   assert.equal(r.code, 0, r.stderr);
-  assert.match(r.stdout, /^npm install -g @paperstreetapp\/bujo-cli$/m);
+  assert.match(r.stdout, /^npm install -g github:paperstreetapp\/bujo-cli#v0\.2\.0$/m);
 });
 
 test('hook: lists a Check signal task due in 3 days under Week ahead', () => {
