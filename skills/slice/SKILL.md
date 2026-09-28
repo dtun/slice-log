@@ -86,6 +86,9 @@ esac
 if ! [[ "$DUE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
   echo "DUE must be YYYY-MM-DD (got: $DUE)" >&2; exit 1
 fi
+if ! node -e 'const d=process.argv[1];const t=new Date(d+"T00:00:00Z");process.exit(!isNaN(t)&&t.toISOString().slice(0,10)===d?0:1)' "$DUE"; then
+  echo "DUE must be a real date (got: $DUE)" >&2; exit 1
+fi
 Q_TAGS=(--tag slice --tag question --tag "$CTX")
 [ "${SHARPENED:-}" = 1 ] && Q_TAGS+=(--tag sharpened)
 [ "${THINNED:-}" = 1 ] && Q_TAGS+=(--tag thinned)

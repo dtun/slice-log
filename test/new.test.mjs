@@ -87,3 +87,16 @@ test('new: an invalid CTX exits non-zero with a message and writes nothing', () 
   assert.match(r.stdout + r.stderr, /CTX must be work or personal/);
   assert.deepEqual(snapshot(), before);
 });
+
+test('new: an impossible DUE date exits non-zero and writes nothing', () => {
+  const home = freshJournal();
+  assert.equal(runScript(recipe('First-run check'), { home }).code, 0);
+  const snapshot = () =>
+    bujoJson(home, 'tree').files.map((f) => [f, bujoJson(home, 'read', f).content]);
+  const before = snapshot();
+
+  const r = runScript(recipe('New entry'), { home, vars: { ...VARS, DUE: '2026-02-30' } });
+  assert.notEqual(r.code, 0);
+  assert.match(r.stdout + r.stderr, /DUE must be a real date/);
+  assert.deepEqual(snapshot(), before);
+});
