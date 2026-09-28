@@ -118,6 +118,28 @@ Show what is due across slice entries.
    - Open `Decide:` task → **needs decision**: suggest
      `/slice decide <entry-id>`.
 
+## /slice show <id>
+
+Show one entry, rebuilt from the journal. `<id>` is normally the entry ID
+(the Question bullet's ID); if the user passes the ID of another bullet in the
+entry (e.g. its Signal or Decide), the recipe follows its back-refs to the
+Question.
+
+1. Run the `First-run check`, then the `Show entry` recipe with
+   `ENTRY_ID=<id>`. It is read-only. If it exits non-zero, tell the user no
+   slice entry has that ID.
+2. Present the entry as **Question → Slice → Signal → Decision** (plus the
+   **Pattern**, if one was written), using the bullet text without the tags
+   and `^id` markers. Mention the open or done `Check signal:` / `Decide:`
+   tasks where they explain the status.
+3. State the derived status from the `Status:` line (status is never
+   stored; the recipe derives it from the entry's bullets):
+   - **Closed**: a `Decision:` note exists.
+   - **Needs decision**: an open `Decide:` task exists; suggest
+     `/slice decide <entry-id>`.
+   - **Awaiting signal**: an open `Check signal:` task exists; suggest
+     `/slice signal <entry-id>` once its due date arrives.
+
 ## Recipes
 
 ### First-run check
@@ -273,4 +295,46 @@ bujo "${DIGEST_ARGS[@]}" | awk '
     print
   }
 '
+```
+
+### Show entry
+
+Inputs: `ENTRY_ID` (the Question ID, or the ID of any bullet threaded from it).
+Read-only. Prints the Question line, then the entry's threaded bullets in the
+order Slice, Check signal, Signal, Decide, Decision, Pattern, each followed by
+its source path in parentheses, then `Status: <derived status>`.
+
+```bash
+if [ -z "${ENTRY_ID:-}" ]; then echo "ENTRY_ID is required" >&2; exit 1; fi
+json() { node -pe "const d=JSON.parse(require('fs').readFileSync(0,'utf8')).data; $1"; }
+is_question() { [[ "$1" == "- Q: "* && " $1 " == *" #slice "* && " $1 " == *" #question "* ]]; }
+Q_ID=$ENTRY_ID
+Q_LINE=$(bujo read "$Q_ID" --bullet-only 2>/dev/null || true)
+if [ -n "$Q_LINE" ] && ! is_question "$Q_LINE"; then
+  for ref in $(bujo refs "$ENTRY_ID" --json | json 'd.backRefs.map((r) => r.id).join(" ")'); do
+    line=$(bujo read "$ref" --bullet-only)
+    if is_question "$line"; then Q_ID=$ref; Q_LINE=$line; break; fi
+  done
+fi
+if ! is_question "$Q_LINE"; then echo "No slice entry for ID $ENTRY_ID" >&2; exit 1; fi
+Q_PATH=$(bujo read "$Q_ID" --json | json 'd.path')
+echo "$Q_LINE ($Q_PATH)"
+ORDER=('^- Slice: ' '^- \[.\] Check signal: ' '^- Signal: ' '^- \[.\] Decide: ' '^- Decision: ' ' #pattern( |$)')
+declare -a SECTIONS=("" "" "" "" "" "")
+while read -r ref path; do
+  [ -z "$ref" ] && continue
+  line=$(bujo read "$ref" --bullet-only)
+  for i in "${!ORDER[@]}"; do
+    if [[ "$line" =~ ${ORDER[$i]} ]]; then
+      SECTIONS[$i]+="$line ($path)"$'\n'; break
+    fi
+  done
+done < <(bujo refs "$Q_ID" --json | json 'd.forwardRefs.map((r) => r.id + " " + r.path).join("\n")')
+for s in "${SECTIONS[@]}"; do printf '%s' "$s"; done
+STATUS=""
+if [ -n "${SECTIONS[4]}" ]; then STATUS="Closed"
+elif [[ "${SECTIONS[3]}" == *"- [ ] Decide: "* ]]; then STATUS="Needs decision"
+elif [[ "${SECTIONS[1]}" == *"- [ ] Check signal: "* ]]; then STATUS="Awaiting signal"
+fi
+echo "Status: $STATUS"
 ```
