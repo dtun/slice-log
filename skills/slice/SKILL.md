@@ -101,6 +101,23 @@ bullet's ID).
 7. Report the `decision=` ID and, if written, the `pattern=` ID. The entry is
    now closed.
 
+## /slice inbox
+
+Show what is due across slice entries.
+
+1. Run the `First-run check`, then the `Inbox` recipe (leave `DIGEST_DATE`
+   unset; it defaults to today).
+2. If it prints nothing, tell the user nothing is due and stop.
+3. Otherwise present the result grouped as the digest does, keeping its
+   sections in order: **Today**, **Week ahead**, **Overdue**. For each open
+   task, say what to do next based on its derived status. The entry ID is
+   the Question ID that the task's back-ref points to (the `← ^<entry-id>`
+   marker on the line):
+   - Open `Check signal:` task → **awaiting signal**: suggest
+     `/slice signal <entry-id>` once the due date arrives.
+   - Open `Decide:` task → **needs decision**: suggest
+     `/slice decide <entry-id>`.
+
 ## Recipes
 
 ### First-run check
@@ -237,4 +254,23 @@ if [ -n "${PATTERN:-}" ]; then
   bujo thread "$ENTRY_ID" "$PATTERN_ID" >/dev/null
   echo "pattern=$PATTERN_ID"
 fi
+```
+
+### Inbox
+
+Inputs: optional `DIGEST_DATE` (`YYYY-MM-DD`, reference date for the digest;
+defaults to today). Prints the `#slice` lines of `bujo digest`, each under its
+section heading (`## Today`, `## Week ahead`, `## Overdue`); empty sections are
+dropped. Prints nothing (and exits 0) when nothing is due.
+
+```bash
+DIGEST_ARGS=(digest)
+if [ -n "${DIGEST_DATE:-}" ]; then DIGEST_ARGS+=(--date "$DIGEST_DATE"); fi
+bujo "${DIGEST_ARGS[@]}" | awk '
+  /^## / { heading = $0; shown = 0; next }
+  /#slice([^[:alnum:]_-]|$)/ {
+    if (!shown) { if (printed) print ""; print heading; shown = 1; printed = 1 }
+    print
+  }
+'
 ```
