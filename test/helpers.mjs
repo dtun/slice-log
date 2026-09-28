@@ -42,10 +42,12 @@ function shQuote(v) {
   return `'${String(v).replaceAll("'", `'\\''`)}'`;
 }
 
-// Run a script with bash under `set -euo pipefail`, with variable assignments prepended.
+// Run a script with `bash -c`, with variable assignments prepended — the way
+// Claude runs a recipe. No shell options are added: a recipe must fail fast on
+// its own (`set -euo pipefail` in the block).
 export function runScript(script, { vars = {}, home, path = PATH_WITH_BUJO } = {}) {
   const assigns = Object.entries(vars).map(([k, v]) => `${k}=${shQuote(v)}`).join('\n');
-  const full = `set -euo pipefail\n${assigns}\n${script}\n`;
+  const full = `${assigns}\n${script}\n`;
   const r = spawnSync('/bin/bash', ['-c', full], {
     encoding: 'utf8',
     env: { PATH: path, BUJO_HOME: home ?? freshJournal(), BUJO_TZ: 'UTC', HOME: tmpdir() },

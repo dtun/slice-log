@@ -16,6 +16,10 @@ Each step below is a `### <recipe>` heading with one `bash` block. Set the
 documented shell variables, then run the block as-is with the Bash tool.
 Recipes are self-contained and print what they create.
 
+Every recipe starts with `set -euo pipefail`, so it stops at the first failed
+command (exiting non-zero). If a recipe fails, report its error output to the
+user; do not retry it piecemeal or run the remaining commands by hand.
+
 **Run the `First-run check` recipe at the top of every `/slice` command.** If it
 exits non-zero, stop and show the user its output (e.g. the install command);
 do not run any other recipe. When everything is already set up it prints nothing.
@@ -166,6 +170,7 @@ switch back to `npm install -g @paperstreetapp/bujo-cli` once bujo is
 published to npm.
 
 ```bash
+set -euo pipefail
 if ! command -v bujo >/dev/null 2>&1; then
   echo "npm install -g github:paperstreetapp/bujo-cli#v0.2.0"
   exit 1
@@ -187,6 +192,7 @@ Inputs: `QUESTION`, `AT_STAKE`, `SLICE`, `SHORT_Q`, `DUE` (`YYYY-MM-DD`),
 Prints `question=<id>`, `slice=<id>`, `check=<id>`; the question ID is the entry ID.
 
 ```bash
+set -euo pipefail
 read_id() { node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).data.id'; }
 for v in QUESTION AT_STAKE SLICE SHORT_Q DUE CTX; do
   if [ -z "${!v:-}" ]; then echo "$v is required" >&2; exit 1; fi
@@ -222,6 +228,7 @@ tag (`work`/`personal`) is copied from the Question bullet.
 Prints `signal=<id>` and `decide=<id>`.
 
 ```bash
+set -euo pipefail
 read_id() { node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).data.id'; }
 for v in ENTRY_ID SIGNAL SHORT_Q; do
   if [ -z "${!v:-}" ]; then echo "$v is required" >&2; exit 1; fi
@@ -261,6 +268,7 @@ copied from the Question bullet.
 Prints `decision=<id>` and, when a pattern is written, `pattern=<id>`.
 
 ```bash
+set -euo pipefail
 read_id() { node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).data.id'; }
 for v in ENTRY_ID LABEL WHY; do
   if [ -z "${!v:-}" ]; then echo "$v is required" >&2; exit 1; fi
@@ -305,6 +313,7 @@ section heading (`## Today`, `## Week ahead`, `## Overdue`); empty sections are
 dropped. Prints nothing (and exits 0) when nothing is due.
 
 ```bash
+set -euo pipefail
 DIGEST_ARGS=(digest)
 if [ -n "${DIGEST_DATE:-}" ]; then DIGEST_ARGS+=(--date "$DIGEST_DATE"); fi
 bujo "${DIGEST_ARGS[@]}" | awk '
@@ -324,6 +333,7 @@ order Slice, Check signal, Signal, Decide, Decision, Pattern, each followed by
 its source path in parentheses, then `Status: <derived status>`.
 
 ```bash
+set -euo pipefail
 if [ -z "${ENTRY_ID:-}" ]; then echo "ENTRY_ID is required" >&2; exit 1; fi
 json() { node -pe "const d=JSON.parse(require('fs').readFileSync(0,'utf8')).data; $1"; }
 is_question() { [[ "$1" == "- Q: "* && " $1 " == *" #slice "* && " $1 " == *" #question "* ]]; }
@@ -369,6 +379,7 @@ mentions it are skipped. With no patterns it prints `_No patterns yet._`
 under the heading.
 
 ```bash
+set -euo pipefail
 bujo search "#pattern" --json | node -e '
   const { data } = JSON.parse(require("fs").readFileSync(0, "utf8"));
   const tagged = (s, t) => new RegExp(`(^|\\s)#${t}(?=\\s|$)`).test(s);

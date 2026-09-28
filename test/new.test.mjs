@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bujoJson, freshJournal, recipe, runScript } from './helpers.mjs';
+import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { PATH_WITH_BUJO, ROOT, bujoJson, freshJournal, recipe, runScript } from './helpers.mjs';
 
 const VARS = {
   QUESTION: 'Will a weekly digest email bring lapsed users back?',
@@ -99,4 +102,29 @@ test('new: an impossible DUE date exits non-zero and writes nothing', () => {
   assert.notEqual(r.code, 0);
   assert.match(r.stdout + r.stderr, /DUE must be a real date/);
   assert.deepEqual(snapshot(), before);
+});
+
+test('new: stops at the first failed bujo call instead of leaving a partial entry', () => {
+  const home = freshJournal();
+  assert.equal(runScript(recipe('First-run check'), { home }).code, 0);
+
+  // A `bujo` shim first on PATH: `thread` fails, everything else is the real bujo.
+  const shimDir = mkdtempSync(join(tmpdir(), 'slice-shim-'));
+  const shim = join(shimDir, 'bujo');
+  writeFileSync(
+    shim,
+    [
+      '#!/bin/bash',
+      'if [ "${1:-}" = thread ]; then echo "bujo: thread failed" >&2; exit 1; fi',
+      `exec ${JSON.stringify(join(ROOT, 'node_modules/.bin/bujo'))} "$@"`,
+      '',
+    ].join('\n'),
+  );
+  chmodSync(shim, 0o755);
+
+  const r = runScript(recipe('New entry'), { home, vars: VARS, path: `${shimDir}:${PATH_WITH_BUJO}` });
+  assert.notEqual(r.code, 0, r.stdout);
+  assert.doesNotMatch(r.stdout, /^check=/m);
+  const checks = bujoJson(home, 'search', 'Check signal:');
+  assert.deepEqual(checks, []);
 });
